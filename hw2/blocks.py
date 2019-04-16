@@ -75,7 +75,8 @@ class Linear(Block):
         # TODO: Create the weight matrix (w) and bias vector (b).
 
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.w = torch.randn(self.out_features, self.in_features) * wstd
+        self.b = torch.rand(self.out_features) * wstd
         # ========================
 
         self.dw = torch.zeros_like(self.w)
@@ -100,7 +101,8 @@ class Linear(Block):
         # TODO: Compute the affine transform
 
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        w_t = torch.transpose(self.w, 0, 1)
+        out = torch.mm(x, w_t) + self.b
         # ========================
 
         self.grad_cache['x'] = x
@@ -119,7 +121,12 @@ class Linear(Block):
         #   - db, the gradient of the loss with respect to b
         # You should accumulate gradients in dw and db.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        # db = torch.ones(self.out_features)
+        dout_t = torch.transpose(dout, 0, 1)
+        dw = torch.mm(dout_t, x)
+        dx = torch.mm(dout, self.w)
+        self.dw += dw
+        self.db += dout.sum(0)
         # ========================
 
         return dx
@@ -145,7 +152,7 @@ class ReLU(Block):
 
         # TODO: Implement the ReLU operation.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        out = x.clamp(min=0)
         # ========================
 
         self.grad_cache['x'] = x
@@ -160,7 +167,7 @@ class ReLU(Block):
 
         # TODO: Implement gradient w.r.t. the input x
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        dx = (x > 0).type(torch.FloatTensor) * dout
         # ========================
 
         return dx
@@ -190,7 +197,8 @@ class Sigmoid(Block):
         # TODO: Implement the Sigmoid function. Save whatever you need into
         # grad_cache.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        out = 1/(1+torch.exp(-x))
+        self.grad_cache['s'] = out
         # ========================
 
         return out
@@ -203,7 +211,8 @@ class Sigmoid(Block):
 
         # TODO: Implement gradient w.r.t. the input x
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        s = self.grad_cache['s']
+        dx = s * (1 - s) * dout
         # ========================
 
         return dx
@@ -247,7 +256,8 @@ class CrossEntropyLoss(Block):
         # Tip: to get a different column from each row of a matrix tensor m,
         # you can index it with m[range(num_rows), list_of_cols].
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+
+        loss = torch.sum(-x[range(N), y] + torch.log(torch.sum(torch.exp(x), 1))) / N
         # ========================
 
         self.grad_cache['x'] = x
@@ -266,7 +276,7 @@ class CrossEntropyLoss(Block):
 
         # TODO: Calculate the gradient w.r.t. the input x
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        # dx =
         # ========================
 
         return dx

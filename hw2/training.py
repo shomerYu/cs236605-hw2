@@ -72,7 +72,41 @@ class Trainer(abc.ABC):
             # - Optional: Implement early stopping. This is a very useful and
             #   simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+
+            train_res = self.train_epoch(dl_train, verbose=verbose)
+            mean_train_loss = sum(train_res.losses) / len(train_res.losses)
+
+            #train_loss.extend(train_res.losses)
+            train_loss.append(mean_train_loss)
+            train_acc.append(train_res.accuracy)
+
+            test_res = self.test_epoch(dl_test, verbose=verbose)
+            mean_test_loss = sum(test_res.losses) / len(test_res.losses)
+            # test_loss.extend(test_res.losses)
+            test_loss.append(mean_test_loss)
+            test_acc.append(test_res.accuracy)
+
+            if checkpoints is not None:
+                if epoch == 0:
+                    best_acc = test_res.accuracy
+                elif best_acc < test_res.accuracy:
+                    best_acc = test_res.accuracy
+                    torch.save(self.model, checkpoints)
+
+            if early_stopping is not None:
+                if epoch != 0:
+                    current_loss = mean_test_loss
+                    if current_loss < previous_loss:
+                        epochs_without_improvement = 0
+                        previous_loss = current_loss
+                    else:
+                        epochs_without_improvement += 1
+                else:
+                    previous_loss = mean_test_loss
+
+                if epochs_without_improvement > early_stopping:
+                    actual_num_epochs = epoch
+                    break
             # ========================
 
         return FitResult(actual_num_epochs,
@@ -188,7 +222,16 @@ class BlocksTrainer(Trainer):
         # - Optimize params
         # - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        n = X.shape[0]
+        x = X.reshape(n, -1)
+        y_score = self.model(x)
+        loss = self.loss_fn(y_score, y)
+        self.optimizer.zero_grad()
+        dout = self.loss_fn.backward()
+        self.model.backward(dout)
+        self.optimizer.step()
+        y_hat = torch.argmax(y_score, 1)
+        num_correct = torch.sum(y_hat == y)
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -200,7 +243,12 @@ class BlocksTrainer(Trainer):
         # - Forward pass
         # - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        n = X.shape[0]
+        x = X.reshape(n, -1)
+        y_score = self.model(x)
+        loss = self.loss_fn(y_score, y)
+        y_hat = torch.argmax(y_score, 1)
+        num_correct = torch.sum(y_hat == y)
         # ========================
 
         return BatchResult(loss, num_correct)

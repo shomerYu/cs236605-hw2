@@ -225,13 +225,13 @@ class BlocksTrainer(Trainer):
         n = X.shape[0]
         x = X.reshape(n, -1)
         y_score = self.model(x)
-        loss = self.loss_fn(y_score, y)
         self.optimizer.zero_grad()
-        dout = self.loss_fn.backward()
-        self.model.backward(dout)
+        loss = self.loss_fn(y_score, y).numpy()
+        d_out = self.loss_fn.backward(loss)
+        self.model.backward(d_out)
         self.optimizer.step()
         y_hat = torch.argmax(y_score, 1)
-        num_correct = torch.sum(y_hat == y)
+        num_correct = torch.sum(y_hat == y).numpy()
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -270,7 +270,14 @@ class TorchTrainer(Trainer):
         # - Optimize params
         # - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+
+        y_score = self.model(X)
+        self.optimizer.zero_grad()
+        loss = self.loss_fn(y_score, y)
+        loss.backward()
+        self.optimizer.step()
+        y_hat = torch.argmax(y_score, 1)
+        num_correct = torch.sum(y == y_hat)
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -286,7 +293,10 @@ class TorchTrainer(Trainer):
             # - Forward pass
             # - Calculate number of correct predictions
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            y_score = self.model(X)
+            loss = self.loss_fn(y_score, y)
+            y_hat = torch.argmax(y_score, 1)
+            num_correct = torch.sum(y_hat == y)
             # ========================
 
         return BatchResult(loss, num_correct)

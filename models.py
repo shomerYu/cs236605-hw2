@@ -111,20 +111,22 @@ class ConvClassifier(nn.Module):
 
         # for simplicity we do the first iteration manually
         layers.append(
-            nn.Sequential(nn.Conv2d(in_channels, self.filters[0], kernel_size=3, stride=1, padding=1), nn.ReLU()))
+            nn.Conv2d(in_channels, self.filters[0], kernel_size=3, stride=1, padding=1))
+        layers.append(nn.ReLU())
         for k in range(1, self.pool_every):
-            layers.append(nn.Sequential(nn.Conv2d(self.filters[k - 1], self.filters[k], 3, 1, 1), nn.ReLU()))
-        layers.append(nn.MaxPool2d(kernel_size=2, stride=4,padding=-1))
+            layers.append(nn.Conv2d(self.filters[k - 1], self.filters[k], 3, 1, 1))
+            layers.append(nn.ReLU())
+        layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
 
         # now the rest of the iterations
 
         for j in range(1, int(len(self.filters) / self.pool_every)):
             for i in range(self.pool_every):
-                layers.append(nn.Sequential(
+                layers.append(
                     nn.Conv2d(self.filters[(j*self.pool_every)+i-1], self.filters[(self.pool_every * j)+i],
-                              kernel_size=3, stride=1, padding=1),
-                    nn.ReLU()))
-            layers.append(nn.MaxPool2d(kernel_size=2, stride=4, padding=-1))
+                              kernel_size=3, stride=1, padding=1))
+                layers.append(nn.ReLU())
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
 
         # ========================
         seq = nn.Sequential(*layers)
@@ -140,21 +142,25 @@ class ConvClassifier(nn.Module):
         # You'll need to calculate the number of features first.
         # The last Linear layer should have an output dimension of out_classes.
         # ====== YOUR CODE: ======
-        print(in_channels,in_h,in_w)
 
         in_channels = int(self.filters[-1])
-        in_h = int(self.in_size[1]*(0.25**(len(self.filters) / self.pool_every)))
-        in_w = int(self.in_size[2]*(0.25**(len(self.filters) / self.pool_every)))
+        in_h = int(self.in_size[1]*(0.5**(len(self.filters) / self.pool_every)))
+        in_w = int(self.in_size[2]*(0.5**(len(self.filters) / self.pool_every)))
 
-        newTuple = (in_channels,in_h,in_w)
+
+        newTuple = (int(in_channels),int(in_h),int(in_w))
         mul = newTuple[0] * newTuple[1] * newTuple[2]
-        print("val = ")
-        print(mul)
-        layers.append(nn.Sequential(nn.Linear(mul, self.hidden_dims[0]), nn.ReLU()))
+
+        print("hidden dims :", self.hidden_dims[0])
+
+        layers.append(nn.Linear(mul, self.hidden_dims[0]))
+        layers.append(nn.ReLU())
         for i in range(1, len(self.hidden_dims)):
-            layers.append(nn.Sequential(nn.Linear(self.hidden_dims[i - 1], self.hidden_dims[i]), nn.ReLU()))
+            layers.append(nn.Linear(self.hidden_dims[i - 1], self.hidden_dims[i]))
+            layers.append(nn.ReLU())
         layers.append(
-            nn.Sequential(nn.Linear(self.hidden_dims[-1], self.out_classes), nn.ReLU()))
+            nn.Linear(self.hidden_dims[-1], self.out_classes))
+        layers.append(nn.ReLU())
         # ========================
         seq = nn.Sequential(*layers)
         return seq
@@ -164,14 +170,25 @@ class ConvClassifier(nn.Module):
         # Extract features from the input, run the classifier on them and
         # return class scores.
         # ====== YOUR CODE: ======
-        seq = self._make_feature_extractor()
-        for layer in seq:
+        super().__init__()
+        features = self._make_feature_extractor()
+        classifier = (self._make_classifier())
+        i=0
+        for layer in features:
             x = layer(x)
-            print("ok1")
-        layers = self._make_classifier()
-        for layer1 in layers:
-            x = layer1(x)
-            print("ok2")
+            size = list(x.size())
+            print("layer: ", i)
+            i+=1
+            for elem in size:
+                print(elem)
+        i = 0
+        for layer in classifier:
+            x = layer(x)
+            size = list(x.size())
+            print("layer: ", i)
+            i += 1
+            for elem in size:
+                print(elem)
         out = x
         # ========================
         return out

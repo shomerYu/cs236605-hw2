@@ -110,11 +110,14 @@ class ConvClassifier(nn.Module):
         # for simplicity we do the first iteration manually
         layers.append(nn.Conv2d(in_channels, self.filters[0], 3, padding=1))
         layers.append(nn.ReLU())
+        if self.pool_every == 1:
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            self.num_of_pools += 1
         # now the rest of the iterations
-        for i in range(len(self.filters)-1):
-            layers.append(nn.Conv2d(self.filters[i], self.filters[i+1], 3, padding=1))
+        for i in range(1, len(self.filters)):
+            layers.append(nn.Conv2d(self.filters[i-1], self.filters[i], 3, padding=1))
             layers.append(nn.ReLU())
-            if i % self.pool_every == 0:
+            if ((i+1) % self.pool_every) == 0:
                 layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
                 self.num_of_pools += 1
 
@@ -133,8 +136,8 @@ class ConvClassifier(nn.Module):
         # ====== YOUR CODE: ======
 
         for i in range(self.num_of_pools):
-            in_h = in_h // self.pool_every
-            in_w = in_w // self.pool_every
+            in_h = in_h // 2
+            in_w = in_w // 2
 
         in_features = self.filters[-1] * in_h * in_w
 
@@ -158,9 +161,9 @@ class ConvClassifier(nn.Module):
         # Extract features from the input, run the classifier on them and
         # return class scores.
         # ====== YOUR CODE: ======
-        ext = self.feature_extractor(x)
-        view = ext.view(ext.shape[0], -1)
-        out = self.classifier(view)
+        extract = self.feature_extractor(x)
+        out = extract.view(extract.size(0), -1)
+        out = self.classifier(out)
         # ========================
         return out
 
@@ -174,6 +177,59 @@ class YourCodeNet(ConvClassifier):
     # For example, add batchnorm, dropout, skip connections, change conv
     # filter sizes etc.
     # ====== YOUR CODE: ======
-    #raise NotImplementedError()
+
+    def _make_feature_extractor(self):
+        in_channels, in_h, in_w, = tuple(self.in_size)
+        layers = []
+
+        self.num_of_pools = 0
+        # for simplicity we do the first iteration manually
+        layers.append(nn.Conv2d(in_channels, self.filters[0], 3, padding=1))
+        #layers.append(nn.BatchNorm2d(self.filters[0]))
+        layers.append(nn.ReLU())
+        layers.append(nn.Dropout(p=0.2))
+        if self.pool_every == 1:
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            self.num_of_pools += 1
+        # now the rest of the iterations
+        for i in range(1, len(self.filters)):
+            layers.append(nn.Conv2d(self.filters[i-1], self.filters[i], 3, padding=1))
+            if i % 3 == 0:
+                layers.append(nn.BatchNorm2d(self.filters[i]))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(p=0.2))
+
+            if ((i+1) % self.pool_every) == 0:
+                layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+                self.num_of_pools += 1
+
+        seq = nn.Sequential(*layers)
+        return seq
+
+    def _make_classifier(self):
+        in_channels, in_h, in_w, = tuple(self.in_size)
+
+        layers = []
+        for i in range(self.num_of_pools):
+            in_h = in_h // 2
+            in_w = in_w // 2
+
+        in_features = self.filters[-1] * in_h * in_w
+
+        # for simplicity we do the first iteration manually
+        layers.append(nn.Linear(in_features, self.hidden_dims[0]))
+        layers.append(nn.ReLU())
+        layers.append(nn.Dropout(p=0.5))
+
+        # now the rest of the iterations
+        for i in range(len(self.hidden_dims)-1):
+            layers.append(nn.Linear(self.hidden_dims[i], self.hidden_dims[i + 1]))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(p=0.5))
+        # now the final layer
+        layers.append(nn.Linear(self.hidden_dims[-1], self.out_classes))
+
+        seq = nn.Sequential(*layers)
+        return seq
     # ========================
 

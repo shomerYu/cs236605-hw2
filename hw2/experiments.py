@@ -10,12 +10,17 @@ import torchvision
 
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
+from torch.optim import SGD
 
 from cs236605.train_results import FitResult
+from hw2.models import ConvClassifier
+from hw2.optimizers import MomentumSGD
+from hw2.training import Trainer, TorchTrainer
 from . import models
 from . import training
 
-DATA_DIR = os.path.join(os.getenv('HOME'), '.pytorch-datasets')
+
+DATA_DIR = os.path.expanduser('~/.pytorch-datasets')
 
 
 def run_experiment(run_name, out_dir='./results', seed=None,
@@ -25,14 +30,14 @@ def run_experiment(run_name, out_dir='./results', seed=None,
                    # Model params
                    filters_per_layer=[64], layers_per_block=2, pool_every=2,
                    hidden_dims=[1024], ycn=False,
-                   **kw):
+                   CrossEntropyLoss=None, **kw):
     """
     Execute a single run of experiment 1 with a single configuration.
     :param run_name: The name of the run and output file to create.
     :param out_dir: Where to write the output to.
     """
     if not seed:
-        seed = random.randint(0, 2**31)
+        seed = random.randint(0, 2 ** 31)
     torch.manual_seed(seed)
     if not bs_test:
         bs_test = max([bs_train // 4, 1])
@@ -42,8 +47,8 @@ def run_experiment(run_name, out_dir='./results', seed=None,
     ds_train = CIFAR10(root=DATA_DIR, download=True, train=True, transform=tf)
     ds_test = CIFAR10(root=DATA_DIR, download=True, train=False, transform=tf)
 
+    #device = torch.device('cuda' if False else 'cpu')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     # Select model class (experiment 1 or 2)
     model_cls = models.ConvClassifier if not ycn else models.YourCodeNet
 
@@ -56,7 +61,34 @@ def run_experiment(run_name, out_dir='./results', seed=None,
     #  for you automatically.
     fit_res = None
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+
+    # train_batch_size = 120
+    # test_batch_size = 30
+    print(device)
+    filters = []
+    for J in filters_per_layer:
+        filters.extend([J] * layers_per_block)
+
+    effecive_ds_train, restof_ds_train = torch.utils.data.random_split(ds_train, (12000, len(ds_train)-12000))
+    effecive_ds_test, restof_ds_test = torch.utils.data.random_split(ds_test, (3000, len(ds_test)-3000))
+
+    ds_train = effecive_ds_train
+    ds_test = effecive_ds_test
+
+    dl_train = DataLoader(ds_train, batch_size=bs_train, shuffle=False)
+    dl_test = DataLoader(ds_test, batch_size=bs_test, shuffle=False)
+
+    x0, _ = ds_train[0]
+    in_size = x0.shape
+    num_classes = 10
+
+    new_model = model_cls(in_size=in_size, out_classes=num_classes, filters=filters, pool_every=pool_every,
+                          hidden_dims=hidden_dims)
+    optimizer = SGD(new_model.parameters(), lr, momentum=0.9)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    trainer = TorchTrainer(new_model, loss_fn, optimizer, device=device)
+    fit_res = trainer.fit(dl_train, dl_test, epochs, checkpoints, early_stopping, **kw)
+
     # ========================
 
     save_experiment(run_name, out_dir, cfg, fit_res)

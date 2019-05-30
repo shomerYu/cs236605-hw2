@@ -72,18 +72,17 @@ class Trainer(abc.ABC):
             # - Optional: Implement early stopping. This is a very useful and
             #   simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
-
-            train_res = self.train_epoch(dl_train, verbose=verbose)
+            train_res = self.train_epoch(dl_train, verbose=verbose, **kw)
             mean_train_loss = sum(train_res.losses) / len(train_res.losses)
 
-            #train_loss.extend(train_res.losses)
-            train_loss.append(mean_train_loss)
+            train_loss.extend(train_res.losses)
+            #train_loss.append(mean_train_loss)
             train_acc.append(train_res.accuracy)
 
-            test_res = self.test_epoch(dl_test, verbose=verbose)
+            test_res = self.test_epoch(dl_test, verbose=verbose, **kw)
             mean_test_loss = sum(test_res.losses) / len(test_res.losses)
-            # test_loss.extend(test_res.losses)
-            test_loss.append(mean_test_loss)
+            test_loss.extend(test_res.losses)
+            #test_loss.append(mean_test_loss)
             test_acc.append(test_res.accuracy)
 
             if checkpoints is not None:
@@ -93,6 +92,7 @@ class Trainer(abc.ABC):
                     best_acc = test_res.accuracy
                     torch.save(self.model, checkpoints)
 
+            # early stopping by loss
             if early_stopping is not None:
                 if epoch != 0:
                     current_loss = mean_test_loss
@@ -101,12 +101,33 @@ class Trainer(abc.ABC):
                         previous_loss = current_loss
                     else:
                         epochs_without_improvement += 1
+                        print("epochs without improvement:")
+                        print(epochs_without_improvement)
                 else:
                     previous_loss = mean_test_loss
-
+                    epochs_without_improvement = 0
                 if epochs_without_improvement > early_stopping:
                     actual_num_epochs = epoch
                     break
+
+            # early stopping by acc
+
+            # if early_stopping is not None:
+            #     if epoch != 0:
+            #         current_acc = test_res.accuracy
+            #         if current_acc > previous_acc:
+            #             epochs_without_improvement = 0
+            #             previous_acc = current_acc
+            #         else:
+            #             epochs_without_improvement += 1
+            #             print("epochs without improvement:")
+            #             print(epochs_without_improvement)
+            #     else:
+            #         previous_acc = test_res.accuracy
+            #         epochs_without_improvement = 0
+            #     if epochs_without_improvement > early_stopping:
+            #         actual_num_epochs = epoch
+            #         break
             # ========================
 
         return FitResult(actual_num_epochs,
@@ -225,9 +246,9 @@ class BlocksTrainer(Trainer):
         n = X.shape[0]
         x = X.reshape(n, -1)
         y_score = self.model(x)
-        self.optimizer.zero_grad()
         loss = self.loss_fn(y_score, y).numpy()
-        d_out = self.loss_fn.backward(loss)
+        self.optimizer.zero_grad()
+        d_out = self.loss_fn.backward()
         self.model.backward(d_out)
         self.optimizer.step()
         y_hat = torch.argmax(y_score, 1)
@@ -277,7 +298,8 @@ class TorchTrainer(Trainer):
         loss.backward()
         self.optimizer.step()
         y_hat = torch.argmax(y_score, 1)
-        num_correct = torch.sum(y == y_hat)
+        num_correct = torch.sum(y_hat == y).to('cpu').detach().numpy()
+        loss = loss.to('cpu').detach().numpy().tolist()
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -296,7 +318,9 @@ class TorchTrainer(Trainer):
             y_score = self.model(X)
             loss = self.loss_fn(y_score, y)
             y_hat = torch.argmax(y_score, 1)
-            num_correct = torch.sum(y_hat == y)
+            num_correct = torch.sum(y_hat == y).to('cpu').detach().numpy()
+            loss = loss.to('cpu').detach().numpy().tolist()
+            #num_correct = torch.sum(y_hat == y)
             # ========================
 
         return BatchResult(loss, num_correct)
